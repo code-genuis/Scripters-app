@@ -2,6 +2,9 @@
 
 Scripters-app is a clean and user-friendly quiz web app built using HTML, CSS, and JavaScript.
 
+# Preview
+https://scripters-app.netlify.app
+
 ## 🎯 Features
 
 - 3 Categories of Quizzes  
