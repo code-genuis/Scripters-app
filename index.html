@@ -1,0 +1,1857 @@
+<script type="text/javascript">
+  var gk_isXlsx = false;
+  var gk_xlsxFileLookup = {};
+  var gk_fileData = {};
+  function filledCell(cell) {
+    return cell !== "" && cell != null;
+  }
+  function loadFileData(filename) {
+    if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+      try {
+        var workbook = XLSX.read(gk_fileData[filename], { type: "base64" });
+        var firstSheetName = workbook.SheetNames[0];
+        var worksheet = workbook.Sheets[firstSheetName];
+
+        // Convert sheet to JSON to filter blank rows
+        var jsonData = XLSX.utils.sheet_to_json(worksheet, {
+          header: 1,
+          blankrows: false,
+          defval: "",
+        });
+        // Filter out blank rows (rows where all cells are empty, null, or undefined)
+        var filteredData = jsonData.filter((row) => row.some(filledCell));
+
+        // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+        var headerRowIndex = filteredData.findIndex(
+          (row, index) =>
+            row.filter(filledCell).length >=
+            filteredData[index + 1]?.filter(filledCell).length
+        );
+        // Fallback
+        if (headerRowIndex === -1 || headerRowIndex > 25) {
+          headerRowIndex = 0;
+        }
+
+        // Convert filtered JSON back to CSV
+        var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+        csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+        return csv;
+      } catch (e) {
+        console.error(e);
+        return "";
+      }
+    }
+    return gk_fileData[filename] || "";
+  }
+</script>
+<!DOCTYPE html>
+<html lang="en" class="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="theme-color" content="#6b46c1" />
+    <meta
+      name="description"
+      content="Quiz Master - Test your knowledge with our interactive quizzes"
+    />
+    <title>Quiz Categories</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="assets/style.css">
+    <!-- <style>
+      :root {
+        /* Light theme - Simple and Clean */
+        --color-bg-primary: #f8fafc;
+        --color-bg-secondary: #f1f5f9;
+        --color-border: #e2e8f0;
+        --color-text-primary: #1a202c;
+        --color-text-secondary: #475569;
+        --color-accent: #805ad5;
+        --color-accent-hover: #6b46c1;
+        --color-secondary-accent: #db2777;
+        --color-success: #059669;
+        --color-error: #dc2626;
+        --color-card-bg: #ffffff;
+        --color-card-border: #e2e8f0;
+        --color-card-hover: #f8fafc;
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.21);
+        --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.143);
+        --shadow-lg: 0 4px 6px rgba(0, 0, 0, 0.225);
+        --radius-sm: 0.25rem;
+        --radius-md: 0.375rem;
+        --radius-lg: 0.5rem;
+        --radius-full: 9999px;
+        --transition-fast: 0.15s ease;
+        --transition-medium: 0.25s ease;
+        --transition-slow: 0.35s ease;
+      }
+
+      .dark {
+        /* Dark theme - Soft and Clean */
+        --color-bg-primary: #1e1e2e;
+        --color-bg-secondary: #282838;
+        --color-border: #3a3a4a;
+        --color-text-primary: #f0f0f5;
+        --color-text-secondary: #d0d0d5;
+        --color-accent: #a78bfa;
+        --color-accent-hover: #8b5cf6;
+        --color-secondary-accent: #f472b6;
+        --color-success: #34d399;
+        --color-error: #f87171;
+        --color-card-bg: #282838;
+        --color-card-border: #3a3a4a;
+        --color-card-hover: #323248;
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.1);
+        --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.1);
+        --shadow-lg: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+
+      body {
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+          Helvetica, Arial, sans-serif;
+        background-color: var(--color-bg-primary);
+        color: var(--color-text-primary);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        transition: background-color var(--transition-medium),
+          color var(--transition-medium);
+        margin: 0;
+        padding: 0;
+        overflow-x: hidden;
+        line-height: 1.5;
+      }
+
+      .category-card {
+        transition: all var(--transition-medium);
+        border: 1px solid var(--color-card-border);
+        background-color: var(--color-card-bg);
+        box-shadow: var(--shadow-sm);
+        position: relative;
+        overflow: hidden;
+        cursor: pointer;
+        transform-origin: center;
+        border-radius: var(--radius-md);
+        padding: 1.25rem;
+      }
+
+      .category-card:hover {
+        transform: translateY(-3px);
+        background-color: var(--color-card-hover);
+        border-color: var(--color-accent);
+        box-shadow: var(--shadow-md);
+      }
+
+      .option-btn {
+        transition: all var(--transition-medium);
+        border: 1px solid var(--color-border);
+        background-color: var(--color-card-bg);
+        color: var(--color-text-primary) !important;
+        box-shadow: var(--shadow-sm);
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+        border-radius: var(--radius-sm);
+        padding: 0.75rem 1rem;
+        font-weight: 400;
+        text-align: left;
+        width: 100%;
+      }
+
+      .option-btn:hover {
+        background-color: var(--color-card-hover);
+        border-color: var(--color-accent);
+        box-shadow: var(--shadow-sm);
+        transform: translateY(-1px);
+      }
+
+      .correct {
+        background-color: var(--color-success) !important;
+        color: white !important;
+        border-color: var(--color-success) !important;
+        box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.2) !important;
+      }
+
+      .incorrect {
+        background-color: var(--color-error) !important;
+        color: white !important;
+        border-color: var(--color-error) !important;
+        box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.2) !important;
+      }
+
+      .progress-bar {
+        transition: width var(--transition-medium);
+        background: var(--color-accent);
+        /* box-shadow: 0 0 5px rgba(128, 90, 213, 0.2); */
+        position: relative;
+        overflow: hidden;
+        border-radius: var(--radius-full);
+        height: 0.375rem;
+      }
+
+      .theme-toggle {
+        transition: transform var(--transition-medium);
+        border-radius: var(--radius-full);
+        padding: 0.5rem;
+        background-color: transparent;
+        border: 1px solid var(--color-border);
+      }
+
+      .theme-toggle:hover {
+        transform: rotate(180deg);
+        border-color: var(--color-accent);
+      }
+
+      .sidebar {
+        transition: all var(--transition-medium);
+        border: 1px solid var(--color-border);
+        background-color: var(--color-card-bg);
+        box-shadow: var(--shadow-sm);
+        border-radius: var(--radius-md);
+        padding: 1.25rem;
+        transition: none !important;
+      }
+
+      .sidebar:hover {
+        box-shadow: var(--shadow-sm) !important;
+      }
+
+      .sidebar h2 {
+        font-weight: 500;
+        color: var(--color-text-primary) !important;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--color-border);
+      }
+
+      .history-item {
+        border: 1px solid var(--color-border);
+        background-color: var(--color-card-bg);
+        transition: all var(--transition-medium);
+        box-shadow: var(--shadow-sm);
+        cursor: pointer;
+        border-radius: var(--radius-sm);
+        padding: 0.75rem 1rem;
+        margin-bottom: 0.5rem;
+        color: var(--color-text-primary) !important;
+      }
+
+      .history-item:hover {
+        background-color: var(--color-card-hover);
+        box-shadow: var(--shadow-sm);
+        transform: none !important;
+        border-color: var(--color-accent);
+      }
+
+      .btn-primary {
+        background-color: var(--color-accent);
+        color: white !important;
+        transition: all var(--transition-medium);
+        box-shadow: var(--shadow-sm);
+        position: relative;
+        overflow: hidden;
+        cursor: pointer;
+        border: 1px solid transparent;
+        border-radius: var(--radius-sm);
+        padding: 0.75rem 1.25rem;
+        font-weight: 500;
+        text-align: center;
+        width: 100%;
+      }
+
+      .btn-primary:hover {
+        background-color: var(--color-accent-hover);
+        box-shadow: var(--shadow-md);
+        transform: translateY(-1px);
+      }
+
+      .card {
+        border: 1px solid var(--color-border);
+        background-color: var(--color-card-bg);
+        transition: all var(--transition-medium);
+        box-shadow: var(--shadow-sm);
+        border-radius: var(--radius-md);
+        padding: 1.25rem;
+      }
+
+      .card:hover {
+        box-shadow: var(--shadow-md);
+      }
+
+      /* Header enhancements */
+      header .card {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-sm);
+        transition: none !important;
+      }
+
+      header .card:hover {
+        transform: none !important;
+        box-shadow: var(--shadow-sm) !important;
+      }
+
+      header h1 {
+        font-weight: 600;
+        color: var(--color-accent) !important;
+        letter-spacing: -0.025em;
+      }
+
+      header button {
+        transition: none !important;
+        border: none;
+        background-color: transparent;
+        color: var(--color-text-primary);
+        padding: 0.5rem;
+        border-radius: var(--radius-full);
+      }
+
+      header button:hover {
+        transform: none !important;
+        background-color: var(--color-bg-secondary);
+      }
+
+      /* Quiz screen enhancements */
+      #quiz-screen .progress-container {
+        margin-bottom: 1.25rem;
+      }
+
+      #quiz-screen .timer {
+        font-weight: 500;
+        color: var(--color-accent) !important;
+      }
+
+      #quiz-screen .timer.warning {
+        color: var(--color-error) !important;
+      }
+
+      #question-text {
+        font-size: 1.125rem;
+        font-weight: 400;
+        margin-bottom: 1.25rem;
+        line-height: 1.5;
+        color: var(--color-text-primary) !important;
+      }
+
+      /* Result screen enhancements */
+      #result-screen .stats-container {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.75rem;
+        margin-bottom: 1.25rem;
+      }
+
+      #result-screen .stat-card {
+        background-color: var(--color-card-bg);
+        border-radius: var(--radius-sm);
+        padding: 0.75rem;
+        text-align: center;
+        box-shadow: var(--shadow-sm);
+        transition: all var(--transition-medium);
+      }
+
+      #result-screen .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-sm);
+      }
+
+      #result-screen .stat-label {
+        font-size: 0.875rem;
+        color: var(--color-text-secondary) !important;
+        margin-bottom: 0.25rem;
+      }
+
+      #result-screen .stat-value {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--color-text-primary) !important;
+      }
+
+      #result-screen .performance-message {
+        font-size: 1rem;
+        font-weight: 400;
+        margin: 1.25rem 0;
+        text-align: center;
+        color: var(--color-text-secondary) !important;
+      }
+
+      /* Footer enhancements */
+      footer .card {
+        text-align: center;
+        padding: 1rem;
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-sm);
+        transition: none !important;
+      }
+
+      footer .card:hover {
+        box-shadow: var(--shadow-sm) !important;
+      }
+
+      footer a {
+        font-weight: 500;
+        transition: color var(--transition-medium);
+        text-decoration: none;
+        color: var(--color-accent) !important;
+      }
+
+      footer a:hover {
+        color: var(--color-secondary-accent) !important;
+        text-decoration: underline;
+      }
+
+      /* Remove hover effects from header, footer, and sidebar */
+      header,
+      footer,
+      .sidebar {
+        transition: none !important;
+      }
+
+      header:hover,
+      footer:hover,
+      .sidebar:hover {
+        transform: none !important;
+      }
+
+      /* Update the main content area to complement the header and footer */
+      main {
+        border-radius: 0;
+        margin-top: -1px;
+        margin-bottom: -1px;
+        box-shadow: none;
+      }
+
+      /* Add subtle separator between sections */
+      .section-divider {
+        height: 1px;
+        background-color: var(--color-border);
+        margin: 1rem 0;
+        opacity: 0.5;
+      }
+
+      /* Simplify animations */
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+
+      @keyframes slideIn {
+        from {
+          opacity: 0;
+          transform: translateX(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+
+      @keyframes scaleIn {
+        from {
+          opacity: 0;
+          transform: scale(0.98);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+
+      @keyframes correct-pulse {
+        0% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.02);
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
+
+      @keyframes incorrect-shake {
+        0%,
+        100% {
+          transform: translateX(0);
+        }
+        25% {
+          transform: translateX(-3px);
+        }
+        75% {
+          transform: translateX(3px);
+        }
+      }
+
+      @keyframes progress-shine {
+        0% {
+          transform: translateX(-100%);
+          opacity: 0.3;
+        }
+        50% {
+          opacity: 0.5;
+        }
+        100% {
+          transform: translateX(100%);
+          opacity: 0.3;
+        }
+      }
+
+      .fade-in {
+        animation: fadeIn 0.3s ease forwards;
+      }
+
+      .slide-in {
+        animation: slideIn 0.3s ease forwards;
+      }
+
+      .scale-in {
+        animation: scaleIn 0.3s ease forwards;
+      }
+
+      .stagger-delay-1 {
+        animation-delay: 0.05s;
+      }
+      .stagger-delay-2 {
+        animation-delay: 0.1s;
+      }
+      .stagger-delay-3 {
+        animation-delay: 0.15s;
+      }
+
+      /* Responsive adjustments */
+      @media (max-width: 640px) {
+        .py-8 {
+          padding-top: 1rem;
+          padding-bottom: 1rem;
+        }
+
+        .px-4 {
+          padding-left: 0.5rem;
+          padding-right: 0.5rem;
+        }
+
+        .text-3xl {
+          font-size: 1.25rem;
+        }
+
+        .text-2xl {
+          font-size: 1.125rem;
+        }
+
+        .text-xl {
+          font-size: 1rem;
+        }
+
+        .grid {
+          grid-template-columns: 1fr !important;
+        }
+
+        .gap-6 {
+          gap: 0.75rem;
+        }
+
+        .mb-8 {
+          margin-bottom: 1.25rem;
+        }
+
+        .p-8 {
+          padding: 1rem;
+        }
+      }
+
+      @media (min-width: 641px) and (max-width: 1024px) {
+        .grid {
+          grid-template-columns: repeat(2, 1fr) !important;
+        }
+      }
+
+      /* Fix for text colors in both themes */
+      .text-accent {
+        color: var(--color-accent) !important;
+      }
+
+      .text-secondary {
+        color: var(--color-text-secondary) !important;
+      }
+
+      .text-success {
+        color: var(--color-success) !important;
+      }
+
+      .text-error {
+        color: var(--color-error) !important;
+      }
+
+      /* Fix for button text colors */
+      .btn-primary {
+        background-color: var(--color-accent);
+        color: white !important;
+        transition: all var(--transition-medium);
+        box-shadow: var(--shadow-sm);
+        position: relative;
+        overflow: hidden;
+        cursor: pointer;
+        border: 1px solid transparent;
+        border-radius: var(--radius-sm);
+        padding: 0.75rem 1.25rem;
+        font-weight: 500;
+        text-align: center;
+        width: 100%;
+      }
+
+      /* Fix for option buttons */
+      .option-btn {
+        transition: all var(--transition-medium);
+        border: 1px solid var(--color-border);
+        background-color: var(--color-card-bg);
+        color: var(--color-text-primary) !important;
+        box-shadow: var(--shadow-sm);
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+        border-radius: var(--radius-sm);
+        padding: 0.75rem 1rem;
+        font-weight: 400;
+        text-align: left;
+        width: 100%;
+      }
+
+      /* Fix for correct/incorrect states */
+      .correct {
+        background-color: var(--color-success) !important;
+        color: white !important;
+        border-color: var(--color-success) !important;
+        box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.2) !important;
+      }
+
+      .incorrect {
+        background-color: var(--color-error) !important;
+        color: white !important;
+        border-color: var(--color-error) !important;
+        box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.2) !important;
+      }
+
+      /* Fix for quiz screen elements */
+      #quiz-screen .timer {
+        font-weight: 500;
+        color: var(--color-accent) !important;
+      }
+
+      #quiz-screen .timer.warning {
+        color: var(--color-error) !important;
+      }
+
+      /* Fix for result screen elements */
+      #result-screen .stat-label {
+        font-size: 0.875rem;
+        color: var(--color-text-secondary) !important;
+        margin-bottom: 0.25rem;
+      }
+
+      #result-screen .stat-value {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--color-text-primary) !important;
+      }
+
+      #result-screen .performance-message {
+        font-size: 1rem;
+        font-weight: 400;
+        margin: 1.25rem 0;
+        text-align: center;
+        color: var(--color-text-secondary) !important;
+      }
+
+      /* Fix for history items */
+      .history-item {
+        border: 1px solid var(--color-border);
+        background-color: var(--color-card-bg);
+        transition: all var(--transition-medium);
+        box-shadow: var(--shadow-sm);
+        cursor: pointer;
+        border-radius: var(--radius-sm);
+        padding: 0.75rem 1rem;
+        margin-bottom: 0.5rem;
+        color: var(--color-text-primary) !important;
+      }
+
+      /* Fix for footer links */
+      footer a {
+        font-weight: 500;
+        transition: color var(--transition-medium);
+        text-decoration: none;
+        color: var(--color-accent) !important;
+      }
+
+      footer a:hover {
+        color: var(--color-secondary-accent) !important;
+        text-decoration: underline;
+      }
+
+      /* Fix for header title */
+      header h1 {
+        font-weight: 600;
+        color: var(--color-accent) !important;
+        letter-spacing: -0.025em;
+      }
+
+      /* Fix for sidebar headings */
+      .sidebar h2 {
+        font-weight: 500;
+        color: var(--color-text-primary) !important;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--color-border);
+      }
+
+      /* Fix for quiz history items */
+      .history-item .font-medium {
+        color: var(--color-text-primary) !important;
+      }
+
+      .history-item .text-sm {
+        color: var(--color-accent) !important;
+      }
+
+      .history-item .text-xs {
+        color: var(--color-text-secondary) !important;
+      }
+
+      /* Fix for feedback text */
+      #feedback {
+        color: var(--color-text-primary) !important;
+      }
+
+      #feedback.text-success {
+        color: var(--color-success) !important;
+      }
+
+      #feedback.text-error {
+        color: var(--color-error) !important;
+      }
+
+      /* Fix for result screen title */
+      #result-screen h1 {
+        color: var(--color-accent) !important;
+      }
+
+      /* Fix for result screen score */
+      #score {
+        color: var(--color-accent) !important;
+      }
+
+      /* Fix for result screen correct/incorrect counts */
+      #correct-answers {
+        color: var(--color-success) !important;
+      }
+
+      #incorrect-answers {
+        color: var(--color-error) !important;
+      }
+
+      /* Fix for category card text */
+      .category-card h3 {
+        color: var(--color-text-primary) !important;
+      }
+
+      .category-card p {
+        color: var(--color-text-secondary) !important;
+      }
+
+      /* Fix for category screen title */
+      #category-screen h2 {
+        color: var(--color-text-primary) !important;
+      }
+
+      /* Fix for question number */
+      #question-number {
+        color: var(--color-text-primary) !important;
+      }
+
+      /* Fix for next button text */
+      #next-btn {
+        color: white !important;
+      }
+
+      /* Fix for restart button text */
+      #restart-btn {
+        color: white !important;
+      }
+
+      /* Fix for theme toggle button */
+      #theme-toggle {
+        color: var(--color-text-primary) !important;
+      }
+
+      /* Fix for sidebar toggle button */
+      #sidebar-toggle {
+        color: var(--color-text-primary) !important;
+      }
+
+      /* Fix for random emoji */
+      #random-emoji {
+        color: inherit !important;
+      }
+
+      /* Quiz section refinements - make it smaller, simpler, and more professional */
+      #quiz-screen {
+        background-color: var(--color-card-bg);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-md);
+        padding: 1.25rem;
+        transition: all var(--transition-medium);
+      }
+
+      #quiz-screen .progress-container {
+        margin-bottom: 1rem;
+        background-color: var(--color-bg-secondary);
+        border-radius: var(--radius-md);
+        padding: 0.75rem;
+        box-shadow: var(--shadow-sm);
+      }
+
+      #quiz-screen .timer {
+        font-weight: 500;
+        color: var(--color-accent) !important;
+        font-size: 0.875rem;
+      }
+
+      #quiz-screen .timer.warning {
+        color: var(--color-error) !important;
+        animation: pulse 1s infinite;
+      }
+
+      #question-text {
+        font-size: 1rem;
+        font-weight: 500;
+        margin-bottom: 1rem;
+        line-height: 1.5;
+        color: var(--color-text-primary) !important;
+        background-color: var(--color-bg-secondary);
+        padding: 0.75rem;
+        border-radius: var(--radius-md);
+        border-left: 3px solid var(--color-accent);
+      }
+
+      #options {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+      }
+
+      .option-btn {
+        transition: all var(--transition-medium);
+        border: 1px solid var(--color-border);
+        background-color: var(--color-card-bg);
+        color: var(--color-text-primary) !important;
+        box-shadow: var(--shadow-sm);
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+        border-radius: var(--radius-md);
+        padding: 0.75rem 1rem;
+        font-weight: 400;
+        text-align: left;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        font-size: 0.875rem;
+      }
+
+      .option-btn::before {
+        content: "";
+        display: inline-block;
+        width: 1.25rem;
+        height: 1.25rem;
+        border-radius: 50%;
+        background-color: var(--color-bg-secondary);
+        margin-right: 0.5rem;
+        border: 1px solid var(--color-border);
+      }
+
+      .option-btn:hover {
+        background-color: var(--color-card-hover);
+        border-color: var(--color-accent);
+        box-shadow: var(--shadow-sm);
+        transform: translateY(-1px);
+      }
+
+      .option-btn.correct {
+        background-color: var(--color-success) !important;
+        color: white !important;
+        border-color: var(--color-success) !important;
+        box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.2) !important;
+      }
+
+      .option-btn.correct::before {
+        background-color: rgba(255, 255, 255, 0.2);
+        border-color: white;
+      }
+
+      .option-btn.incorrect {
+        background-color: var(--color-error) !important;
+        color: white !important;
+        border-color: var(--color-error) !important;
+        box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.2) !important;
+      }
+
+      .option-btn.incorrect::before {
+        background-color: rgba(255, 255, 255, 0.2);
+        border-color: white;
+      }
+
+      #feedback {
+        background-color: var(--color-bg-secondary);
+        padding: 0.75rem;
+        border-radius: var(--radius-md);
+        margin: 1rem 0;
+        text-align: center;
+        font-weight: 500;
+        font-size: 0.875rem;
+        color: var(--color-text-primary) !important;
+        border-left: 3px solid var(--color-accent);
+      }
+
+      #feedback.text-success {
+        color: var(--color-success) !important;
+        border-left-color: var(--color-success);
+      }
+
+      #feedback.text-error {
+        color: var(--color-error) !important;
+        border-left-color: var(--color-error);
+      }
+
+      #next-btn {
+        background-color: var(--color-accent);
+        color: white !important;
+        transition: all var(--transition-medium);
+        box-shadow: var(--shadow-sm);
+        position: relative;
+        overflow: hidden;
+        cursor: pointer;
+        border: 1px solid transparent;
+        border-radius: var(--radius-md);
+        padding: 0.75rem 1rem;
+        font-weight: 500;
+        text-align: center;
+        width: 100%;
+        font-size: 0.875rem;
+      }
+
+      #next-btn:hover {
+        background-color: var(--color-accent-hover);
+        box-shadow: var(--shadow-md);
+        transform: translateY(-1px);
+      }
+
+      /* Update the quiz screen HTML structure */
+      #quiz-screen h2 {
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+      }
+
+      #quiz-screen .text-lg {
+        font-size: 0.875rem;
+      }
+
+      #quiz-screen .progress-bar {
+        height: 0.5rem;
+      }
+
+      /* Responsive adjustments for quiz screen */
+      @media (max-width: 640px) {
+        #quiz-screen {
+          padding: 1rem;
+        }
+
+        #question-text {
+          font-size: 0.875rem;
+          padding: 0.5rem;
+        }
+
+        .option-btn {
+          padding: 0.5rem 0.75rem;
+        }
+      }
+    </style> -->
+  </head>
+  <body class="py-8 px-4">
+    <!-- Header -->
+    <header class="max-w-7xl mx-auto w-full mb-8">
+      <div
+        class="card rounded-lg shadow-sm p-4 flex justify-between items-center scale-in"
+      >
+        <div class="flex items-center gap-4">
+          <button
+            id="sidebar-toggle"
+            class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 lg:hidden"
+            aria-label="Toggle sidebar"
+          >
+            <svg
+              class="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 6h16M4 12h16M4 18h16"
+              ></path>
+            </svg>
+          </button>
+          <h1 class="text-2xl font-bold text-accent">Quiz Master</h1>
+        </div>
+        <button
+          id="theme-toggle"
+          class="theme-toggle p-2 rounded-lg"
+          aria-label="Toggle theme"
+        >
+          <svg
+            class="w-6 h-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              class="dark:hidden"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
+            ></path>
+            <path
+              class="hidden dark:block"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
+            ></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <div
+      class="max-w-7xl mx-auto w-full flex-grow flex flex-col lg:flex-row gap-8"
+    >
+      <!-- Sidebar -->
+      <aside
+        class="sidebar w-full lg:w-64 rounded-lg shadow-sm p-4 h-fit lg:block hidden slide-in"
+      >
+        <h2 class="text-xl font-semibold mb-4">Quiz History</h2>
+        <div class="space-y-2" id="quiz-history">
+          <!-- Quiz history items will be inserted here -->
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="flex-1 w-full">
+        <!-- Category Selection Screen -->
+        <div id="category-screen" class="card rounded-lg shadow-sm p-8 fade-in">
+          <h2 class="text-3xl font-bold text-center mb-8">
+            Choose a Quiz Category
+          </h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div
+              class="category-card p-6 rounded-lg cursor-pointer scale-in stagger-delay-1"
+              data-category="general"
+            >
+              <h3 class="text-xl font-semibold mb-2">General Knowledge</h3>
+              <p class="text-secondary">
+                Test your basic knowledge across various topics
+              </p>
+            </div>
+            <div
+              class="category-card p-6 rounded-lg cursor-pointer scale-in stagger-delay-2"
+              data-category="science"
+            >
+              <h3 class="text-xl font-semibold mb-2">Science</h3>
+              <p class="text-secondary">
+                Explore questions about science and technology
+              </p>
+            </div>
+            <div
+              class="category-card p-6 rounded-lg cursor-pointer scale-in stagger-delay-3"
+              data-category="history"
+            >
+              <h3 class="text-xl font-semibold mb-2">History</h3>
+              <p class="text-secondary">
+                Journey through time with historical questions
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quiz Screen -->
+        <div
+          id="quiz-screen"
+          class="hidden card rounded-lg shadow-sm p-8 fade-in"
+        >
+          <div class="mb-6">
+            <div
+              class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-2"
+            >
+              <h2 class="text-xl font-semibold">
+                Question <span id="question-number"></span>
+              </h2>
+              <div class="text-lg">
+                Time: <span id="timer" class="text-accent">15</span>s
+              </div>
+            </div>
+            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+              <div
+                id="progress-bar"
+                class="progress-bar h-6 rounded-full"
+                style="width: 0%"
+              ></div>
+            </div>
+          </div>
+          <p id="question-text" class="text-xl mb-6"></p>
+          <div id="options" class="space-y-4"></div>
+          <div id="feedback" class="mt-6 text-center text-lg"></div>
+          <button
+            id="next-btn"
+            class="btn-primary w-full py-3 rounded-lg mt-6 hidden"
+          >
+            Next Question
+          </button>
+        </div>
+
+        <!-- Result Screen -->
+        <div
+          id="result-screen"
+          class="hidden card rounded-lg shadow-sm p-8 fade-in"
+        >
+          <h1 class="text-3xl font-bold text-center mb-8 text-accent">
+            Quiz Completed!
+          </h1>
+          <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 mb-6">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+              <div
+                class="text-center p-3 rounded-lg bg-white dark:bg-gray-700 shadow-sm scale-in stagger-delay-1"
+              >
+                <p class="text-lg mb-1">Correct</p>
+                <p
+                  id="correct-answers"
+                  class="text-2xl font-bold text-success"
+                ></p>
+              </div>
+              <div
+                class="text-center p-3 rounded-lg bg-white dark:bg-gray-700 shadow-sm scale-in stagger-delay-2"
+              >
+                <p class="text-lg mb-1">Incorrect</p>
+                <p
+                  id="incorrect-answers"
+                  class="text-2xl font-bold text-error"
+                ></p>
+              </div>
+              <div
+                class="text-center p-3 rounded-lg bg-white dark:bg-gray-700 shadow-sm scale-in stagger-delay-3"
+              >
+                <p class="text-lg mb-1">Score</p>
+                <p id="score" class="text-2xl font-bold text-accent"></p>
+                <p class="text-sm">%</p>
+              </div>
+            </div>
+            <div class="mt-4 text-center">
+              <p class="text-lg text-secondary" id="performance-message"></p>
+            </div>
+          </div>
+          <button id="restart-btn" class="btn-primary w-full py-3 rounded-lg">
+            Try Another Category
+          </button>
+        </div>
+      </main>
+    </div>
+
+    <!-- Footer -->
+    <footer class="max-w-7xl mx-auto w-full mt-8">
+      <div class="card rounded-lg shadow-sm p-4 text-center slide-in">
+        <p class="text-secondary">
+          Made with <span id="random-emoji" class="text-xl"></span> by
+          <a
+            href="https://portfolio.triplealpha.blog"
+            target="_blank"
+            class="text-accent hover:text-accent-hover"
+            >Triple Alpha</a
+          >
+        </p>
+      </div>
+    </footer>
+
+    <script src="assets/script.js"></script>
+    <!-- <script>
+      const emojis = [
+        "❤️",
+        "💡",
+        "🚀",
+        "✨",
+        "🌟",
+        "💪",
+        "🎯",
+        "🎨",
+        "📚",
+        "🎮",
+        "🎵",
+        "🎬",
+        "🌍",
+        "🎪",
+        "🎭",
+      ];
+
+      function getRandomEmoji() {
+        return emojis[Math.floor(Math.random() * emojis.length)];
+      }
+
+      // Theme toggle functionality
+      const themeToggle = document.getElementById("theme-toggle");
+      const html = document.documentElement;
+
+      // Check for saved theme preference
+      if (
+        localStorage.theme === "dark" ||
+        (!("theme" in localStorage) &&
+          window.matchMedia("(prefers-color-scheme: dark)").matches)
+      ) {
+        html.classList.add("dark");
+      } else {
+        html.classList.remove("dark");
+      }
+
+      themeToggle.addEventListener("click", () => {
+        html.classList.toggle("dark");
+        localStorage.theme = html.classList.contains("dark") ? "dark" : "light";
+      });
+
+      // Set random emoji
+      document.getElementById("random-emoji").textContent = getRandomEmoji();
+
+      const quizData = {
+        general: [
+          {
+            question: "What is the capital of France?",
+            options: ["Paris", "London", "Berlin", "Madrid"],
+            answer: "Paris",
+          },
+          {
+            question: "Which planet is known as the Red Planet?",
+            options: ["Jupiter", "Mars", "Venus", "Mercury"],
+            answer: "Mars",
+          },
+          {
+            question: "What is the largest mammal in the world?",
+            options: [
+              "African Elephant",
+              "Blue Whale",
+              "Giraffe",
+              "Hippopotamus",
+            ],
+            answer: "Blue Whale",
+          },
+          {
+            question: "Who painted the Mona Lisa?",
+            options: [
+              "Vincent van Gogh",
+              "Leonardo da Vinci",
+              "Pablo Picasso",
+              "Michelangelo",
+            ],
+            answer: "Leonardo da Vinci",
+          },
+          {
+            question: "What is the chemical symbol for water?",
+            options: ["H2O", "O2", "CO2", "NaCl"],
+            answer: "H2O",
+          },
+        ],
+        science: [
+          {
+            question: "What is the chemical symbol for gold?",
+            options: ["Ag", "Fe", "Au", "Cu"],
+            answer: "Au",
+          },
+          {
+            question: "What is the hardest natural substance on Earth?",
+            options: ["Gold", "Iron", "Diamond", "Platinum"],
+            answer: "Diamond",
+          },
+          {
+            question: "What is the speed of light in miles per second?",
+            options: ["186,282", "150,000", "200,000", "170,000"],
+            answer: "186,282",
+          },
+          {
+            question: "What is the largest organ in the human body?",
+            options: ["Heart", "Brain", "Liver", "Skin"],
+            answer: "Skin",
+          },
+          {
+            question: "What is the atomic number of carbon?",
+            options: ["6", "12", "14", "8"],
+            answer: "6",
+          },
+        ],
+        history: [
+          {
+            question: "In which year did World War II end?",
+            options: ["1945", "1939", "1941", "1943"],
+            answer: "1945",
+          },
+          {
+            question: "Who was the first President of the United States?",
+            options: [
+              "Thomas Jefferson",
+              "George Washington",
+              "Abraham Lincoln",
+              "John Adams",
+            ],
+            answer: "George Washington",
+          },
+          {
+            question: "When was the first moon landing?",
+            options: ["1969", "1971", "1967", "1973"],
+            answer: "1969",
+          },
+          {
+            question: "Who was the first woman to win a Nobel Prize?",
+            options: [
+              "Marie Curie",
+              "Mother Teresa",
+              "Jane Addams",
+              "Pearl Buck",
+            ],
+            answer: "Marie Curie",
+          },
+          {
+            question: "In which year did the Berlin Wall fall?",
+            options: ["1989", "1991", "1987", "1993"],
+            answer: "1989",
+          },
+        ],
+        geography: [
+          {
+            question: "What is the largest desert in the world?",
+            options: ["Sahara", "Arabian", "Gobi", "Antarctic"],
+            answer: "Antarctic",
+          },
+          {
+            question: "Which country has the largest population?",
+            options: ["India", "China", "USA", "Indonesia"],
+            answer: "China",
+          },
+          {
+            question: "What is the longest river in the world?",
+            options: ["Amazon", "Nile", "Yangtze", "Mississippi"],
+            answer: "Nile",
+          },
+          {
+            question: "Which is the largest ocean on Earth?",
+            options: ["Atlantic", "Indian", "Arctic", "Pacific"],
+            answer: "Pacific",
+          },
+          {
+            question: "What is the capital of Japan?",
+            options: ["Seoul", "Beijing", "Tokyo", "Bangkok"],
+            answer: "Tokyo",
+          },
+        ],
+        sports: [
+          {
+            question: "Which country won the first FIFA World Cup?",
+            options: ["Brazil", "Uruguay", "Italy", "Argentina"],
+            answer: "Uruguay",
+          },
+          {
+            question:
+              "How many players are there in a basketball team on court?",
+            options: ["4", "5", "6", "7"],
+            answer: "5",
+          },
+          {
+            question: "In which year were the first modern Olympics held?",
+            options: ["1896", "1900", "1886", "1912"],
+            answer: "1896",
+          },
+          {
+            question: "Who has won the most Grand Slam tennis titles?",
+            options: [
+              "Roger Federer",
+              "Rafael Nadal",
+              "Novak Djokovic",
+              "Pete Sampras",
+            ],
+            answer: "Roger Federer",
+          },
+          {
+            question: "Which country has won the most Olympic medals?",
+            options: ["USA", "Soviet Union", "China", "Germany"],
+            answer: "USA",
+          },
+        ],
+        entertainment: [
+          {
+            question: "Who played Iron Man in the Marvel Cinematic Universe?",
+            options: [
+              "Chris Evans",
+              "Robert Downey Jr.",
+              "Chris Hemsworth",
+              "Mark Ruffalo",
+            ],
+            answer: "Robert Downey Jr.",
+          },
+          {
+            question: "Which band released the album 'Abbey Road'?",
+            options: [
+              "The Rolling Stones",
+              "The Beatles",
+              "Queen",
+              "Pink Floyd",
+            ],
+            answer: "The Beatles",
+          },
+          {
+            question: "Who directed the movie 'Titanic'?",
+            options: [
+              "Steven Spielberg",
+              "James Cameron",
+              "Christopher Nolan",
+              "Martin Scorsese",
+            ],
+            answer: "James Cameron",
+          },
+          {
+            question: "Which actor has won the most Academy Awards?",
+            options: [
+              "Jack Nicholson",
+              "Katharine Hepburn",
+              "Meryl Streep",
+              "Daniel Day-Lewis",
+            ],
+            answer: "Katharine Hepburn",
+          },
+          {
+            question:
+              "What was the first feature-length animated film by Disney?",
+            options: ["Pinocchio", "Snow White", "Bambi", "Dumbo"],
+            answer: "Snow White",
+          },
+        ],
+        literature: [
+          {
+            question: "Who wrote 'Pride and Prejudice'?",
+            options: [
+              "Jane Austen",
+              "Charlotte Brontë",
+              "Charles Dickens",
+              "Virginia Woolf",
+            ],
+            answer: "Jane Austen",
+          },
+          {
+            question: "Which novel features the character Atticus Finch?",
+            options: [
+              "To Kill a Mockingbird",
+              "The Great Gatsby",
+              "1984",
+              "The Catcher in the Rye",
+            ],
+            answer: "To Kill a Mockingbird",
+          },
+          {
+            question: "Who wrote 'The Great Gatsby'?",
+            options: [
+              "Ernest Hemingway",
+              "F. Scott Fitzgerald",
+              "John Steinbeck",
+              "William Faulkner",
+            ],
+            answer: "F. Scott Fitzgerald",
+          },
+          {
+            question: "Which Shakespeare play is known as 'The Scottish Play'?",
+            options: ["Hamlet", "Macbeth", "Othello", "King Lear"],
+            answer: "Macbeth",
+          },
+          {
+            question: "Who wrote 'The Lord of the Rings'?",
+            options: [
+              "C.S. Lewis",
+              "J.R.R. Tolkien",
+              "George R.R. Martin",
+              "J.K. Rowling",
+            ],
+            answer: "J.R.R. Tolkien",
+          },
+        ],
+        technology: [
+          {
+            question: "Who is the co-founder of Microsoft?",
+            options: [
+              "Bill Gates",
+              "Steve Jobs",
+              "Mark Zuckerberg",
+              "Jeff Bezos",
+            ],
+            answer: "Bill Gates",
+          },
+          {
+            question: "What does CPU stand for?",
+            options: [
+              "Central Processing Unit",
+              "Computer Personal Unit",
+              "Central Program Utility",
+              "Computer Processing Unit",
+            ],
+            answer: "Central Processing Unit",
+          },
+          {
+            question: "Which company developed the first iPhone?",
+            options: ["Samsung", "Apple", "Microsoft", "Google"],
+            answer: "Apple",
+          },
+          {
+            question: "What does HTML stand for?",
+            options: [
+              "Hyper Text Markup Language",
+              "High Tech Modern Language",
+              "Hyper Transfer Markup Language",
+              "High Text Machine Language",
+            ],
+            answer: "Hyper Text Markup Language",
+          },
+          {
+            question: "Who created the World Wide Web?",
+            options: [
+              "Bill Gates",
+              "Tim Berners-Lee",
+              "Steve Jobs",
+              "Mark Zuckerberg",
+            ],
+            answer: "Tim Berners-Lee",
+          },
+        ],
+      };
+
+      let currentCategory = "";
+      let currentQuestion = 0;
+      let correctAnswers = 0;
+      let incorrectAnswers = 0;
+      let timer;
+      const timePerQuestion = 15;
+      let currentQuestions = [];
+
+      const categoryScreen = document.getElementById("category-screen");
+      const quizScreen = document.getElementById("quiz-screen");
+      const resultScreen = document.getElementById("result-screen");
+      const questionNumber = document.getElementById("question-number");
+      const questionText = document.getElementById("question-text");
+      const optionsContainer = document.getElementById("options");
+      const feedback = document.getElementById("feedback");
+      const nextBtn = document.getElementById("next-btn");
+      const timerDisplay = document.getElementById("timer");
+      const restartBtn = document.getElementById("restart-btn");
+      const progressBar = document.getElementById("progress-bar");
+
+      // Add click event listeners to category cards
+      document.querySelectorAll(".category-card").forEach((card) => {
+        card.addEventListener("click", () => {
+          currentCategory = card.dataset.category;
+          startQuiz();
+        });
+      });
+
+      function shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+      }
+
+      function startQuiz() {
+        categoryScreen.classList.add("hidden");
+        quizScreen.classList.remove("hidden");
+        currentQuestion = 0;
+        correctAnswers = 0;
+        incorrectAnswers = 0;
+
+        // Shuffle questions for this category
+        currentQuestions = shuffleArray([...quizData[currentCategory]]);
+        loadQuestion();
+      }
+
+      function loadQuestion() {
+        const q = currentQuestions[currentQuestion];
+        questionNumber.textContent = `${currentQuestion + 1} of ${
+          currentQuestions.length
+        }`;
+        questionText.textContent = q.question;
+        optionsContainer.innerHTML = "";
+        feedback.textContent = "";
+        nextBtn.classList.add("hidden");
+
+        // Update progress bar
+        const progress =
+          ((currentQuestion + 1) / currentQuestions.length) * 100;
+        progressBar.style.width = `${progress}%`;
+
+        // Shuffle options for this question
+        const shuffledOptions = shuffleArray([...q.options]);
+        shuffledOptions.forEach((option) => {
+          const button = document.createElement("button");
+          button.textContent = option;
+          button.classList.add(
+            "w-full",
+            "py-3",
+            "rounded-lg",
+            "option-btn",
+            "text-gray-700",
+            "dark:text-gray-200"
+          );
+
+          // Add touch feedback
+          button.addEventListener("touchstart", function () {
+            this.style.transform = "scale(0.98)";
+          });
+
+          button.addEventListener("touchend", function () {
+            this.style.transform = "scale(1)";
+          });
+
+          button.addEventListener("click", () => selectAnswer(option, button));
+          optionsContainer.appendChild(button);
+        });
+
+        startTimer();
+      }
+
+      function startTimer() {
+        let timeLeft = timePerQuestion;
+        timerDisplay.textContent = timeLeft;
+        timer = setInterval(() => {
+          timeLeft--;
+          timerDisplay.textContent = timeLeft;
+
+          // Add visual warning when time is running low
+          if (timeLeft <= 5) {
+            timerDisplay.classList.add("text-error");
+            progressBar.classList.add("pulse");
+          }
+
+          if (timeLeft <= 0) {
+            clearInterval(timer);
+            selectAnswer(null);
+          }
+        }, 1000);
+      }
+
+      function selectAnswer(selected, button) {
+        clearInterval(timer);
+        timerDisplay.classList.remove("text-error");
+        progressBar.classList.remove("pulse");
+
+        const q = currentQuestions[currentQuestion];
+        const buttons = optionsContainer.querySelectorAll("button");
+        buttons.forEach((btn) => (btn.disabled = true));
+
+        if (selected === q.answer) {
+          correctAnswers++;
+          feedback.textContent = "Correct!";
+          feedback.classList.add("text-success");
+          if (button) button.classList.add("correct");
+
+          // Add animation for correct answer
+          if (button) {
+            button.style.animation = "pulse 0.5s";
+          }
+        } else {
+          incorrectAnswers++;
+          feedback.textContent = `Incorrect! The correct answer is ${q.answer}.`;
+          feedback.classList.add("text-error");
+          if (button) button.classList.add("incorrect");
+          buttons.forEach((btn) => {
+            if (btn.textContent === q.answer) btn.classList.add("correct");
+          });
+        }
+
+        nextBtn.classList.remove("hidden");
+      }
+
+      function nextQuestion() {
+        currentQuestion++;
+        feedback.classList.remove("text-success", "text-error");
+        if (currentQuestion < currentQuestions.length) {
+          loadQuestion();
+        } else {
+          showResults();
+        }
+      }
+
+      function getPerformanceMessage(score) {
+        if (score >= 90) return "Outstanding! You're a master of this subject!";
+        if (score >= 70) return "Great job! You really know your stuff!";
+        if (score >= 50) return "Good effort! Keep learning and improving!";
+        return "Keep practicing! You'll get better with time!";
+      }
+
+      function showResults() {
+        quizScreen.classList.add("hidden");
+        resultScreen.classList.remove("hidden");
+        const totalQuestions = currentQuestions.length;
+        const score = Math.round((correctAnswers / totalQuestions) * 100);
+        document.getElementById("correct-answers").textContent = correctAnswers;
+        document.getElementById("incorrect-answers").textContent =
+          incorrectAnswers;
+        document.getElementById("score").textContent = score;
+        document.getElementById("performance-message").textContent =
+          getPerformanceMessage(score);
+
+        // Save quiz result
+        saveQuizResult(currentCategory, score);
+      }
+
+      // Quiz history functionality
+      function saveQuizResult(category, score) {
+        const quizHistory = JSON.parse(
+          localStorage.getItem("quizHistory") || "[]"
+        );
+        const existingQuiz = quizHistory.findIndex(
+          (quiz) => quiz.category === category
+        );
+
+        if (existingQuiz !== -1) {
+          quizHistory[existingQuiz].score = Math.max(
+            quizHistory[existingQuiz].score,
+            score
+          );
+          quizHistory[existingQuiz].lastAttempt = new Date().toISOString();
+        } else {
+          quizHistory.push({
+            category,
+            score,
+            lastAttempt: new Date().toISOString(),
+          });
+        }
+
+        localStorage.setItem("quizHistory", JSON.stringify(quizHistory));
+        updateQuizHistory();
+      }
+
+      function updateQuizHistory() {
+        const quizHistory = JSON.parse(
+          localStorage.getItem("quizHistory") || "[]"
+        );
+        const historyContainer = document.getElementById("quiz-history");
+        historyContainer.innerHTML = "";
+
+        quizHistory
+          .sort((a, b) => new Date(b.lastAttempt) - new Date(a.lastAttempt))
+          .forEach((quiz) => {
+            const historyItem = document.createElement("div");
+            historyItem.className = "history-item p-3 rounded-lg";
+            historyItem.innerHTML = `
+            <div class="flex justify-between items-center">
+              <span class="font-medium">${quiz.category}</span>
+              <span class="text-sm ${
+                quiz.score >= 70 ? "text-success" : "text-accent"
+              }">${quiz.score}%</span>
+            </div>
+            <div class="text-xs text-secondary mt-1">
+              ${new Date(quiz.lastAttempt).toLocaleDateString()}
+            </div>
+          `;
+            historyContainer.appendChild(historyItem);
+          });
+      }
+
+      // Sidebar toggle functionality
+      const sidebarToggle = document.getElementById("sidebar-toggle");
+      const sidebar = document.querySelector(".sidebar");
+
+      sidebarToggle.addEventListener("click", () => {
+        sidebar.classList.toggle("open");
+      });
+
+      nextBtn.addEventListener("click", nextQuestion);
+      restartBtn.addEventListener("click", () => {
+        resultScreen.classList.add("hidden");
+        categoryScreen.classList.remove("hidden");
+      });
+
+      // Initialize quiz history on page load
+      updateQuizHistory();
+
+      // Add touch event handling for mobile
+      document.addEventListener("DOMContentLoaded", function () {
+        // Add touch swipe for sidebar on mobile
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        document.addEventListener(
+          "touchstart",
+          function (e) {
+            touchStartX = e.changedTouches[0].screenX;
+          },
+          false
+        );
+
+        document.addEventListener(
+          "touchend",
+          function (e) {
+            touchEndX = e.changedTouches[0].screenX;
+            handleSwipe();
+          },
+          false
+        );
+
+        function handleSwipe() {
+          const sidebar = document.querySelector(".sidebar");
+          const swipeDistance = touchEndX - touchStartX;
+
+          // If swipe is significant and sidebar is not open
+          if (swipeDistance > 100 && !sidebar.classList.contains("open")) {
+            sidebar.classList.add("open");
+          }
+          // If swipe is significant and sidebar is open
+          else if (swipeDistance < -100 && sidebar.classList.contains("open")) {
+            sidebar.classList.remove("open");
+          }
+        }
+
+        // Add pulse animation for timer warning
+        const style = document.createElement("style");
+        style.textContent = `
+          @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+          }
+          .pulse {
+            animation: pulse 1s infinite;
+          }
+        `;
+        document.head.appendChild(style);
+      });
+    </script>
+     -->
+  </body>
+</html>
